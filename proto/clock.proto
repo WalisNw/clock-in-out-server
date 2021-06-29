@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package clock;
+
+option go_package = ".;clock";
+
+import "google/protobuf/timestamp.proto";
+
+service ClockService {
+  rpc Clock(ClockRequest) returns (ClockResponse);
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
+
+message ClockRequest {
+  Member member = 1;
+  Type type = 2;
+}
+
+message ClockResponse {
+  string result = 1;
+  google.protobuf.Timestamp time = 2;
+}
+
+message CheckRequest {
+  Member member = 1;
+  google.protobuf.Timestamp date = 2;
+}
+
+message CheckResponse {
+  repeated Record records = 1;
+}
+
+message Member {
+  int32 id = 1;
+}
+
+message Record {
+  int32 id = 1;
+  Member member = 2;
+  Type type = 3;
+  int32 status = 4;
+  google.protobuf.Timestamp time = 5;
+}
+
+enum Type {
+  CLOCK_IN = 0;
+  CLOCK_OUT = 1;
+}
