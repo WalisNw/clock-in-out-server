@@ -18,7 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ClockServiceClient interface {
 	Clock(ctx context.Context, in *ClockRequest, opts ...grpc.CallOption) (*ClockResponse, error)
-	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
+	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
 }
 
 type clockServiceClient struct {
@@ -38,9 +38,9 @@ func (c *clockServiceClient) Clock(ctx context.Context, in *ClockRequest, opts .
 	return out, nil
 }
 
-func (c *clockServiceClient) Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error) {
-	out := new(CheckResponse)
-	err := c.cc.Invoke(ctx, "/clock.ClockService/Check", in, out, opts...)
+func (c *clockServiceClient) Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error) {
+	out := new(QueryResponse)
+	err := c.cc.Invoke(ctx, "/clock.ClockService/Query", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (c *clockServiceClient) Check(ctx context.Context, in *CheckRequest, opts .
 // for forward compatibility
 type ClockServiceServer interface {
 	Clock(context.Context, *ClockRequest) (*ClockResponse, error)
-	Check(context.Context, *CheckRequest) (*CheckResponse, error)
+	Query(context.Context, *QueryRequest) (*QueryResponse, error)
 	mustEmbedUnimplementedClockServiceServer()
 }
 
@@ -63,8 +63,8 @@ type UnimplementedClockServiceServer struct {
 func (UnimplementedClockServiceServer) Clock(context.Context, *ClockRequest) (*ClockResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Clock not implemented")
 }
-func (UnimplementedClockServiceServer) Check(context.Context, *CheckRequest) (*CheckResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Check not implemented")
+func (UnimplementedClockServiceServer) Query(context.Context, *QueryRequest) (*QueryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Query not implemented")
 }
 func (UnimplementedClockServiceServer) mustEmbedUnimplementedClockServiceServer() {}
 
@@ -97,20 +97,20 @@ func _ClockService_Clock_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ClockService_Check_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CheckRequest)
+func _ClockService_Query_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ClockServiceServer).Check(ctx, in)
+		return srv.(ClockServiceServer).Query(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/clock.ClockService/Check",
+		FullMethod: "/clock.ClockService/Query",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ClockServiceServer).Check(ctx, req.(*CheckRequest))
+		return srv.(ClockServiceServer).Query(ctx, req.(*QueryRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -124,8 +124,8 @@ var _ClockService_serviceDesc = grpc.ServiceDesc{
 			Handler:    _ClockService_Clock_Handler,
 		},
 		{
-			MethodName: "Check",
-			Handler:    _ClockService_Check_Handler,
+			MethodName: "Query",
+			Handler:    _ClockService_Query_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -23,28 +23,78 @@ type server struct {
 	pb.UnimplementedClockServiceServer
 }
 
-func (s *server) Clock(ctx context.Context, req *pb.ClockRequest) (*pb.ClockResponse, error) {
+func (s *server) Clock(ctx context.Context, req *pb.ClockRequest) (res *pb.ClockResponse, err error) {
 	tx, err := s.pool.Begin(ctx)
+	res = &pb.ClockResponse{Result: "Failed. Please try again later."}
 	if err != nil {
 		log.Printf("start transaction failed. err: %v", err)
-		return &pb.ClockResponse{Result: "Failed. Please try again later."}, err
+		return
 	}
 	var t time.Time
 	if err = tx.QueryRow(ctx, `INSERT INTO record (member_id, type) VALUES ($1, $2) RETURNING created_at`, req.Member.GetId(), req.GetType().Number()).Scan(&t); err != nil {
 		log.Printf("scan failed. err: %v", err)
 		_ = tx.Rollback(ctx)
-		return &pb.ClockResponse{Result: "Failed. Please try again later."}, err
+		return
 	}
 	if err = tx.Commit(ctx); err != nil {
 		log.Printf("commit error. err: %v", err)
 		_ = tx.Rollback(ctx)
-		return &pb.ClockResponse{Result: "Failed. Please try again later."}, err
+		return
 	}
 	typeMsg := "上班"
 	if req.GetType().Number() == 1 {
 		typeMsg = "下班"
 	}
-	return &pb.ClockResponse{Result: fmt.Sprintf("%s 打卡成功", typeMsg), Time: timestamppb.New(t)}, err
+	return &pb.ClockResponse{Result: fmt.Sprintf("%s 打卡成功", typeMsg), Time: timestamppb.New(t)}, nil
+}
+
+func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.QueryResponse, err error) {
+	res = &pb.QueryResponse{Member: req.Member, Type: req.Type, Records: make([]*pb.Record, 0)}
+	var field string
+	switch req.Type {
+	case pb.QueryType_DAY:
+		field = "day"
+	case pb.QueryType_WEEK:
+		field = "week"
+	case pb.QueryType_MONTH:
+		field = "month"
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id, type, created_at FROM record WHERE member_id = $1 AND status = 1 AND created_at::DATE >= DATE_TRUNC($2, NOW()) ORDER BY created_at`, req.Member.Id, field)
+	if err != nil {
+		log.Printf("failed to query. err: %v", err)
+		return
+	}
+	m := make(map[time.Time]*pb.Record, 0)
+	for rows.Next() {
+		var (
+			id int
+			clockType pb.ClockType
+			createdAt time.Time
+		)
+		if err := rows.Scan(&id, &clockType, &createdAt); err != nil {
+			log.Printf("failed to scan. err: %v", err)
+			return res, err
+		}
+		k := createdAt.Truncate(24*time.Hour)
+		r, ok := m[k]
+		if !ok {
+			r = &pb.Record{Date: timestamppb.New(k)}
+			m[k] = r
+		}
+		if clockType == pb.ClockType_CLOCK_IN && r.In == nil {
+			r.In = timestamppb.New(createdAt)
+		} else if clockType == pb.ClockType_CLOCK_OUT {
+			r.Out = timestamppb.New(createdAt)
+		}
+	}
+	ks := make([]time.Time, 0)
+	for k := range m {
+		ks = append(ks, k)
+	}
+	for _, k := range ks {
+		res.Records = append(res.Records, m[k])
+	}
+	return
 }
 
 func main() {

@@ -8,12 +8,12 @@ import "google/protobuf/timestamp.proto";
 
 service ClockService {
   rpc Clock(ClockRequest) returns (ClockResponse);
-  rpc Check(CheckRequest) returns (CheckResponse);
+  rpc Query(QueryRequest) returns (QueryResponse);
 }
 
 message ClockRequest {
   Member member = 1;
-  Type type = 2;
+  ClockType type = 2;
 }
 
 message ClockResponse {
@@ -21,13 +21,15 @@ message ClockResponse {
   google.protobuf.Timestamp time = 2;
 }
 
-message CheckRequest {
+message QueryRequest {
   Member member = 1;
-  google.protobuf.Timestamp date = 2;
+  QueryType type = 2;
 }
 
-message CheckResponse {
-  repeated Record records = 1;
+message QueryResponse {
+  Member member = 1;
+  QueryType type = 2;
+  repeated Record records = 3;
 }
 
 message Member {
@@ -35,14 +37,18 @@ message Member {
 }
 
 message Record {
-  int32 id = 1;
-  Member member = 2;
-  Type type = 3;
-  int32 status = 4;
-  google.protobuf.Timestamp time = 5;
+  google.protobuf.Timestamp date = 1;
+  google.protobuf.Timestamp in = 2;
+  google.protobuf.Timestamp out = 3;
 }
 
-enum Type {
+enum ClockType {
   CLOCK_IN = 0;
   CLOCK_OUT = 1;
+}
+
+enum QueryType {
+  DAY = 0;
+  WEEK = 1;
+  MONTH = 2;
 }
