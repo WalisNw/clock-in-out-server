@@ -19,6 +19,13 @@ import (
 	pb "github.com/WalisNw/clock-in-out-server/proto"
 )
 
+const(
+	DateLayout = "2006/01/02(Mon)"
+	TimeLayout = "15:04:05"
+	NoRecord = "未打卡"
+	Holiday = "休假日"
+)
+
 type server struct {
 	pool *pgxpool.Pool
 	pb.UnimplementedClockServiceServer
@@ -51,22 +58,26 @@ func (s *server) Clock(ctx context.Context, req *pb.ClockRequest) (res *pb.Clock
 
 func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.QueryResponse, err error) {
 	res = &pb.QueryResponse{Member: req.Member, Type: req.Type}
-	var field string
+	var sql string
+	m := make(map[time.Time]*record, 0)
+	today := time.Now().Truncate(24*time.Hour)
 	switch req.Type {
 	case pb.QueryType_DAY:
-		field = "day"
-	case pb.QueryType_WEEK:
-		field = "week"
-	case pb.QueryType_MONTH:
-		field = "month"
+		m[today] = &record{date: today}
+		sql = `SELECT id, type, created_at FROM record WHERE member_id = $1 AND status = 1 AND created_at::date = date_trunc('day', now())  ORDER BY created_at`
+	case pb.QueryType_LAST_SEVEN:
+		for i:=1; i<=7;i++ {
+			d := today.AddDate(0, 0, -i)
+			m[d] = &record{date: d}
+		}
+		sql = `SELECT id, type, created_at FROM record WHERE member_id = $1 AND status = 1 AND created_at::date BETWEEN date_trunc('day', now() - interval '7 day') AND date_trunc('day', now() - interval '1 day') ORDER BY created_at`
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, type, created_at FROM record WHERE member_id = $1 AND status = 1 AND created_at::DATE >= DATE_TRUNC($2, NOW()) ORDER BY created_at`, req.Member.Id, field)
+	rows, err := s.pool.Query(ctx, sql, req.Member.Id)
 	if err != nil {
 		log.Printf("failed to query. err: %v", err)
 		return
 	}
-	m := make(map[time.Time]*pb.Record, 0)
-	records := make(rs, 0)
+	records := make(records, 0)
 	for rows.Next() {
 		var (
 			id int
@@ -80,34 +91,53 @@ func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.Query
 		k := createdAt.Truncate(24*time.Hour)
 		r, ok := m[k]
 		if !ok {
-			r = &pb.Record{Date: timestamppb.New(k)}
+			r = &record{date: k}
 			m[k] = r
 		}
-		if clockType == pb.ClockType_CLOCK_IN && r.In == nil {
-			r.In = timestamppb.New(createdAt)
+		if clockType == pb.ClockType_CLOCK_IN && r.in == nil {
+			r.in = &createdAt
 		} else if clockType == pb.ClockType_CLOCK_OUT {
-			r.Out = timestamppb.New(createdAt)
+			r.out = &createdAt
 		}
 	}
 	for _, r := range m {
 		records = append(records, r)
 	}
 	sort.Sort(records)
-	res.Records = records
+	res.Records = make([]*pb.Record, 0)
+	for _, r := range records {
+		record := &pb.Record{Date: r.date.Format(DateLayout), In: NoRecord, Out: NoRecord}
+		if w := r.date.Weekday(); w == time.Saturday || w==time.Sunday {
+			record.In = Holiday
+			record.Out = Holiday
+		}
+		if r.in != nil {
+			record.In = r.in.Local().Format(TimeLayout)
+		}
+		if r.out != nil {
+			record.Out = r.out.Local().Format(TimeLayout)
+		}
+		res.Records = append(res.Records, record)
+	}
 	return
 }
 
-type rs []*pb.Record
+type record struct {
+	date time.Time
+	in, out *time.Time
+}
 
-func (r rs) Len() int {
+type records []*record
+
+func (r records) Len() int {
 	return len(r)
 }
 
-func (r rs) Less(i, j int) bool {
-	return r[i].Date.AsTime().Before(r[j].Date.AsTime())
+func (r records) Less(i, j int) bool {
+	return r[i].date.Before(r[j].date)
 }
 
-func (r rs) Swap(i, j int) {
+func (r records) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
 }
 

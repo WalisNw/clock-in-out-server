@@ -37,9 +37,9 @@ message Member {
 }
 
 message Record {
-  google.protobuf.Timestamp date = 1;
-  google.protobuf.Timestamp in = 2;
-  google.protobuf.Timestamp out = 3;
+  string date = 1;
+  string in = 2;
+  string out = 3;
 }
 
 enum ClockType {
@@ -49,6 +49,5 @@ enum ClockType {
 
 enum QueryType {
   DAY = 0;
-  WEEK = 1;
-  MONTH = 2;
+  LAST_SEVEN = 1;
 }
