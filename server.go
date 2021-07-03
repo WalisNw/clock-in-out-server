@@ -105,6 +105,10 @@ func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.Query
 	}
 	sort.Sort(records)
 	res.Records = make([]*pb.Record, 0)
+	var zone *time.Location
+	if z, err := time.LoadLocation("Asia/Taipei"); err == nil {
+		zone = z
+	}
 	for _, r := range records {
 		record := &pb.Record{Date: r.date.Format(DateLayout), In: NoRecord, Out: NoRecord}
 		if w := r.date.Weekday(); w == time.Saturday || w==time.Sunday {
@@ -112,10 +116,10 @@ func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.Query
 			record.Out = Holiday
 		}
 		if r.in != nil {
-			record.In = r.in.Local().Format(TimeLayout)
+			record.In = r.in.In(zone).Format(TimeLayout)
 		}
 		if r.out != nil {
-			record.Out = r.out.Local().Format(TimeLayout)
+			record.Out = r.out.In(zone).Format(TimeLayout)
 		}
 		res.Records = append(res.Records, record)
 	}
