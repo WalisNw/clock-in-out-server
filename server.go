@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -49,7 +50,7 @@ func (s *server) Clock(ctx context.Context, req *pb.ClockRequest) (res *pb.Clock
 }
 
 func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.QueryResponse, err error) {
-	res = &pb.QueryResponse{Member: req.Member, Type: req.Type, Records: make([]*pb.Record, 0)}
+	res = &pb.QueryResponse{Member: req.Member, Type: req.Type}
 	var field string
 	switch req.Type {
 	case pb.QueryType_DAY:
@@ -65,6 +66,7 @@ func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.Query
 		return
 	}
 	m := make(map[time.Time]*pb.Record, 0)
+	records := make(rs, 0)
 	for rows.Next() {
 		var (
 			id int
@@ -87,14 +89,26 @@ func (s *server) Query(ctx context.Context, req *pb.QueryRequest) (res *pb.Query
 			r.Out = timestamppb.New(createdAt)
 		}
 	}
-	ks := make([]time.Time, 0)
-	for k := range m {
-		ks = append(ks, k)
+	for _, r := range m {
+		records = append(records, r)
 	}
-	for _, k := range ks {
-		res.Records = append(res.Records, m[k])
-	}
+	sort.Sort(records)
+	res.Records = records
 	return
+}
+
+type rs []*pb.Record
+
+func (r rs) Len() int {
+	return len(r)
+}
+
+func (r rs) Less(i, j int) bool {
+	return r[i].Date.AsTime().Before(r[j].Date.AsTime())
+}
+
+func (r rs) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
 }
 
 func main() {
